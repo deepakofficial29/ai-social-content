@@ -78,3 +78,18 @@ def test_file_too_large_rejected(client, monkeypatch):
     )
     assert r.status_code == 413
     assert r.json()["error"]["code"] == "FILE_TOO_LARGE"
+
+
+def test_image_signature_mismatch_rejected(client):
+    r = client.post(
+        "/api/v1/media/upload",
+        files=[("files", ("photo.webp", make_png(), "image/webp"))],
+    )
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "CORRUPTED_MEDIA"
+
+
+def test_request_id_header_is_returned(client):
+    r = client.get("/api/v1/health", headers={"X-Request-ID": "phase6-test"})
+    assert r.status_code == 200
+    assert r.headers["x-request-id"] == "phase6-test"

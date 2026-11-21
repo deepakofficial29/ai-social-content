@@ -7,7 +7,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.exceptions import MediaNotFoundError, StorageError
+from app.core.exceptions import CorruptedMediaError, MediaNotFoundError, StorageError
 from app.core.logging import get_logger
 from app.core.security import sanitize_filename
 from app.database import repository as repo
@@ -59,19 +59,27 @@ async def ingest_uploads(
     collection = repo.create_collection(db, collection_type_placeholder)
 
     media_items: List[MediaItemResponse] = []
+    media_types_seen: set[str] = set()
 
     try:
         for index, file in enumerate(files):
             data, ext, media_type = await read_and_validate_upload(file, settings)
+            if media_types_seen and media_type not in media_types_seen:
+                raise CorruptedMediaError(
+                    "All uploaded files in one request must use the same media type.",
+                    {"received": sorted(media_types_seen | {media_type})},
+                )
+            media_types_seen.add(media_type)
 
             # Deep content validation
             if media_type == "image":
-                validate_image_bytes(data)
+                validate_image_bytes(data, ext)
                 metadata = extract_image_metadata(data)
             elif media_type == "video":
                 metadata = extract_video_metadata(data, ext)
             else:
                 metadata = extract_audio_metadata(data, ext)
+            _validate_duration(media_type, metadata, settings)
 
             # Update collection type on first (and possibly only) file
             if index == 0:
@@ -160,6 +168,28 @@ def _collection_type(media_type: str, count: int) -> str:
     if media_type == "audio":
         return "audio"
     return "carousel" if count > 1 else "single"
+
+
+def _validate_duration(media_type: str, metadata: dict, settings) -> None:
+    duration = metadata.get("duration_seconds")
+    if duration is None:
+        return
+    if media_type == "video" and float(duration) > settings.MAX_VIDEO_DURATION_SECONDS:
+        raise CorruptedMediaError(
+            "Video duration exceeds the configured limit.",
+            {
+                "duration_seconds": duration,
+                "max_seconds": settings.MAX_VIDEO_DURATION_SECONDS,
+            },
+        )
+    if media_type == "audio" and float(duration) > settings.MAX_AUDIO_DURATION_SECONDS:
+        raise CorruptedMediaError(
+            "Audio duration exceeds the configured limit.",
+            {
+                "duration_seconds": duration,
+                "max_seconds": settings.MAX_AUDIO_DURATION_SECONDS,
+            },
+        )
 
 
 def _asset_to_detail(asset: MediaAsset) -> MediaDetailResponse:

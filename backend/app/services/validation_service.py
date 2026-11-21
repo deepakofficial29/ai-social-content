@@ -98,11 +98,42 @@ async def read_and_validate_upload(
     return data, ext, media_type
 
 
-def validate_image_bytes(data: bytes) -> None:
-    """Use Pillow to verify image integrity.  Raises CorruptedMediaError on failure."""
+def validate_image_bytes(data: bytes, extension: str | None = None) -> str:
+    """Use Pillow to verify actual format, integrity, and configured limits."""
     try:
         from PIL import Image, UnidentifiedImageError
         with Image.open(io.BytesIO(data)) as img:
             img.verify()  # detects truncated / corrupted files
+            img_format = (img.format or "").upper()
+            with Image.open(io.BytesIO(data)) as decoded:
+                width, height = decoded.size
+                pixels = width * height
+                settings = get_settings()
+                if width > settings.MAX_IMAGE_DIMENSION or height > settings.MAX_IMAGE_DIMENSION:
+                    raise CorruptedMediaError(
+                        f"Image dimensions exceed the configured {settings.MAX_IMAGE_DIMENSION}px limit.",
+                        {"width": width, "height": height},
+                    )
+                if pixels > settings.MAX_IMAGE_PIXELS:
+                    raise CorruptedMediaError(
+                        f"Image exceeds the configured {settings.MAX_IMAGE_PIXELS} pixel limit.",
+                        {"pixels": pixels},
+                    )
+            format_by_extension = {
+                "jpg": "JPEG",
+                "jpeg": "JPEG",
+                "png": "PNG",
+                "webp": "WEBP",
+            }
+            if extension:
+                expected = format_by_extension.get(extension.lower())
+                if expected and img_format != expected:
+                    raise CorruptedMediaError(
+                        f"Image signature does not match .{extension}.",
+                        {"detected": img_format, "expected": expected},
+                    )
+            return img_format
     except Exception as exc:
+        if isinstance(exc, CorruptedMediaError):
+            raise
         raise CorruptedMediaError(f"Image validation failed: {exc}") from exc

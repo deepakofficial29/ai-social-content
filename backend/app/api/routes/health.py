@@ -60,7 +60,22 @@ def readiness(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     except Exception as exc:
         checks["ffprobe"] = f"error: {exc}"
 
-    all_ok = all(v == "ok" for v in checks.values())
+    provider_checks = {
+        "gemini": bool(settings.GEMINI_API_KEY),
+        "openai-whisper": bool(settings.OPENAI_API_KEY),
+    }
+    selected_providers = [
+        settings.VISION_PROVIDER,
+        settings.VIDEO_PROVIDER,
+        settings.AUDIO_TRANSCRIPTION_PROVIDER,
+        settings.AUDIO_UNDERSTANDING_PROVIDER,
+        settings.TEXT_GENERATION_PROVIDER,
+    ]
+    for provider in selected_providers:
+        if provider in provider_checks:
+            checks[f"provider:{provider}"] = "configured" if provider_checks[provider] else "missing_api_key"
+
+    all_ok = checks["database"] == "ok" and checks["storage"] == "ok" and checks["ffprobe"] == "ok"
 
     if not all_ok:
         response = APIResponse.fail("Service not ready", "SERVICE_UNAVAILABLE", checks)

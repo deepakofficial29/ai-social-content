@@ -86,3 +86,10 @@ class MediaDetailResponse(BaseModel):
     sequence_index: int
     processing_status: str
     created_at: str
+
+
+class CollectionSummaryResponse(BaseModel):
+    collection_id: str
+    collection_type: str
+    created_at: str
+    media: List[MediaItemResponse]

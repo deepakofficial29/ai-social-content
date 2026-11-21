@@ -7,12 +7,43 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
 from app.core.exceptions import MediaNotFoundError
+from app.database import repository as repo
 from app.pipelines.media_pipeline import run_intake_pipeline
 from app.schemas.common import APIResponse
-from app.schemas.media import MediaDetailResponse, UploadResponseData
+from app.schemas.media import (
+    CollectionSummaryResponse,
+    MediaDetailResponse,
+    MediaItemResponse,
+    UploadResponseData,
+)
 from app.services.media_service import delete_media, get_media_detail
 
 router = APIRouter(prefix="/media", tags=["media"])
+
+
+@router.get("/collections", response_model=APIResponse[List[CollectionSummaryResponse]])
+def list_collections(db: Session = Depends(get_db)):
+    summaries = []
+    for collection in repo.list_collections(db):
+        media_items = []
+        for asset in collection.assets:
+            detail = get_media_detail(asset.id, db)
+            media_items.append(MediaItemResponse(
+                media_id=detail.media_id,
+                filename=detail.filename,
+                media_type=detail.media_type,
+                file_size=detail.file_size,
+                metadata=detail.metadata,
+                processing_status=detail.processing_status,
+                sequence_index=detail.sequence_index,
+            ))
+        summaries.append(CollectionSummaryResponse(
+            collection_id=collection.id,
+            collection_type=collection.collection_type,
+            created_at=collection.created_at.isoformat(),
+            media=media_items,
+        ))
+    return APIResponse.ok("Media collections retrieved", data=summaries)
 
 
 @router.post("/upload", response_model=APIResponse[UploadResponseData], status_code=201)

@@ -158,6 +158,54 @@ Job statuses: `queued` | `processing` | `completed` | `failed`
 
 ---
 
+## Evidence (Phase 3)
+
+### GET /evidence/{collection_id}
+Returns the persisted unified evidence package.  Reading does not rerun AI providers.
+
+### GET /evidence/{collection_id}/items
+Returns atomic evidence items.
+
+### GET /evidence/{collection_id}/provenance
+Returns evidence items with their complete source references.
+
+### GET /evidence/{collection_id}/relationships
+Returns cross-modal, duplicate, and overlap relationships.
+
+### GET /evidence/{collection_id}/conflicts
+Returns potential contradiction records.  Conflicts remain unresolved and do not select a winner.
+
+### GET /evidence/{collection_id}/quality
+Returns qualitative evidence quality assessment.
+
+### GET /evidence/{collection_id}/summary
+Returns the grounded content summary and supporting evidence IDs.
+
+### POST /evidence/{collection_id}/rebuild
+Explicitly reruns Phase 2 understanding and replaces the evidence package, incrementing its version.
+
+### GET /evidence/review/{collection_id}
+Returns the temporary HTML evidence review interface.
+
+---
+
+## Generation (Phase 4)
+
+- `POST /generation/config/{media_id}` saves generation preferences.
+- `POST /generation/config` accepts a request whose `media_id` identifies the collection.
+- `GET /generation/config/{media_id}` retrieves preferences.
+- `POST /generation/strategy/{media_id}` returns a grounded generation plan.
+- `POST /generation/captions/{media_id}` creates and persists caption variants.
+- `GET /generation/{generation_id}` retrieves a complete generation request.
+- `GET /generation/{generation_id}/variants` retrieves variants.
+- `GET /generation/{generation_id}/quality` retrieves quality feedback.
+- `GET /generation/{generation_id}/grounding` retrieves grounding results.
+- `POST /generation/{generation_id}/regenerate` creates a new generation record.
+
+Generation requires an existing collection and usable evidence package. Provider failures return conservative fallback variants with warnings and separate grounding status where applicable.
+
+---
+
 ## Error Codes
 
 | HTTP | Code | Cause |
@@ -169,6 +217,7 @@ Job statuses: `queued` | `processing` | `completed` | `failed`
 | 422 | `VALIDATION_ERROR` | General validation failure |
 | 404 | `MEDIA_NOT_FOUND` | `media_id` does not exist |
 | 404 | `JOB_NOT_FOUND` | `job_id` does not exist |
+| 404 | `EVIDENCE_NOT_FOUND` | Evidence package or requested assessment is unavailable |
 | 500 | `STORAGE_ERROR` | Filesystem read/write failure |
 | 500 | `FFPROBE_ERROR` | FFprobe not found or returned an error |
 | 500 | `DATABASE_ERROR` | Database operation failed |

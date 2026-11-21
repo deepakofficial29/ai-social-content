@@ -1,12 +1,14 @@
 """FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import health, jobs, media
+import app.providers  # noqa: F401 — registers all providers on startup
+from app.api.routes import generation, health, jobs, media, understanding
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import configure_logging, get_logger
@@ -36,6 +38,30 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    @app.middleware("http")
+    async def production_request_guards(request: Request, call_next):
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        from app.core.logging import request_id_var
+        request_id_var.set(request_id)
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > settings.MAX_REQUEST_SIZE_MB * 1024 * 1024:
+                    return JSONResponse(
+                        status_code=413,
+                        content={
+                            "success": False,
+                            "message": "Request exceeds the configured size limit.",
+                            "error": {"code": "REQUEST_TOO_LARGE", "details": {}},
+                        },
+                        headers={"X-Request-ID": request_id},
+                    )
+            except ValueError:
+                pass
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
     # CORS
     app.add_middleware(
         CORSMiddleware,
@@ -61,7 +87,7 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def generic_error_handler(request: Request, exc: Exception):
         logger.exception("Unhandled exception: %s", exc)
-        message = str(exc) if settings.DEBUG else "An internal error occurred."
+        message = "An internal error occurred."
         return JSONResponse(
             status_code=500,
             content={
@@ -76,6 +102,9 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=prefix)
     app.include_router(media.router, prefix=prefix)
     app.include_router(jobs.router, prefix=prefix)
+    app.include_router(understanding.router, prefix=prefix)
+    app.include_router(understanding.evidence_router, prefix=prefix)
+    app.include_router(generation.router, prefix=prefix)
 
     return app
 

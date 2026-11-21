@@ -8,6 +8,9 @@ Future phases will add computer vision, audio transcription, multimodal reasonin
 
 **Core principle: Understand first → Preserve evidence → Understand user intent → Generate → Verify.**
 
+Phase 2 provides modality-specific understanding, and Phase 3 constructs persisted, traceable multimodal evidence packages.  Evidence review is available at `/api/v1/evidence/review/{collection_id}`.  Phase 3 deliberately does not generate captions or publish content.
+Phase 4 builds generation plans and grounded caption variants from those persisted evidence packages. Generation and grounding endpoints are under `/api/v1/generation`; unsupported captions are not silently marked verified.
+
 ---
 
 ## Architecture Overview

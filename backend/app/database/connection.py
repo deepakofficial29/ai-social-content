@@ -31,6 +31,7 @@ def _build_engine():
         @event.listens_for(engine, "connect")
         def set_wal(dbapi_conn, _):
             dbapi_conn.execute("PRAGMA journal_mode=WAL")
+            dbapi_conn.execute("PRAGMA foreign_keys=ON")
 
     return engine
 

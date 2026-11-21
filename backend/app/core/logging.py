@@ -2,9 +2,12 @@
 
 import logging
 import sys
+from contextvars import ContextVar
 from typing import Any, Dict
 
 from app.core.config import get_settings
+
+request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 
 
 class JSONFormatter(logging.Formatter):
@@ -18,6 +21,7 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", request_id_var.get()),
         }
         if record.exc_info:
             payload["exception"] = traceback.format_exception(*record.exc_info)

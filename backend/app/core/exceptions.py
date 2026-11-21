@@ -50,6 +50,11 @@ class JobNotFoundError(AppError):
     error_code = "JOB_NOT_FOUND"
 
 
+class EvidenceNotFoundError(AppError):
+    status_code = 404
+    error_code = "EVIDENCE_NOT_FOUND"
+
+
 class StorageError(AppError):
     status_code = 500
     error_code = "STORAGE_ERROR"
